@@ -1,0 +1,2 @@
+[functions.notify-store-signup]
+verify_jwt = false
