@@ -83,20 +83,6 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('product-images', 'product-images', true, 5242880, array['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
 on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
-drop policy if exists product_images_company_read on storage.objects;
-create policy product_images_company_read on storage.objects for select to authenticated
-  using (bucket_id = 'product-images' and split_part(name, '/', 1) = public.current_company_id()::text and public.is_company_member(public.current_company_id()));
-drop policy if exists product_images_company_insert on storage.objects;
-create policy product_images_company_insert on storage.objects for insert to authenticated
-  with check (bucket_id = 'product-images' and split_part(name, '/', 1) = public.current_company_id()::text and public.has_company_role(public.current_company_id(), array['owner', 'admin', 'cashier']));
-drop policy if exists product_images_company_update on storage.objects;
-create policy product_images_company_update on storage.objects for update to authenticated
-  using (bucket_id = 'product-images' and split_part(name, '/', 1) = public.current_company_id()::text and public.has_company_role(public.current_company_id(), array['owner', 'admin', 'cashier']))
-  with check (bucket_id = 'product-images' and split_part(name, '/', 1) = public.current_company_id()::text and public.has_company_role(public.current_company_id(), array['owner', 'admin', 'cashier']));
-drop policy if exists product_images_company_delete on storage.objects;
-create policy product_images_company_delete on storage.objects for delete to authenticated
-  using (bucket_id = 'product-images' and split_part(name, '/', 1) = public.current_company_id()::text and public.has_company_role(public.current_company_id(), array['owner', 'admin', 'cashier']));
-
 do $$
 declare constraint_row record;
 begin
@@ -156,6 +142,21 @@ as $$
     where company_id = target_company and user_id = auth.uid() and role = any(allowed_roles)
   );
 $$;
+
+-- Políticas del bucket de imágenes (van después de las funciones que usan).
+drop policy if exists product_images_company_read on storage.objects;
+create policy product_images_company_read on storage.objects for select to authenticated
+  using (bucket_id = 'product-images' and split_part(name, '/', 1) = public.current_company_id()::text and public.is_company_member(public.current_company_id()));
+drop policy if exists product_images_company_insert on storage.objects;
+create policy product_images_company_insert on storage.objects for insert to authenticated
+  with check (bucket_id = 'product-images' and split_part(name, '/', 1) = public.current_company_id()::text and public.has_company_role(public.current_company_id(), array['owner', 'admin', 'cashier']));
+drop policy if exists product_images_company_update on storage.objects;
+create policy product_images_company_update on storage.objects for update to authenticated
+  using (bucket_id = 'product-images' and split_part(name, '/', 1) = public.current_company_id()::text and public.has_company_role(public.current_company_id(), array['owner', 'admin', 'cashier']))
+  with check (bucket_id = 'product-images' and split_part(name, '/', 1) = public.current_company_id()::text and public.has_company_role(public.current_company_id(), array['owner', 'admin', 'cashier']));
+drop policy if exists product_images_company_delete on storage.objects;
+create policy product_images_company_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'product-images' and split_part(name, '/', 1) = public.current_company_id()::text and public.has_company_role(public.current_company_id(), array['owner', 'admin', 'cashier']));
 
 create or replace function public.save_product_price(target_product text, new_cost integer, target_margin numeric)
 returns integer

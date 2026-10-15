@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config'
 
-const supabaseUrl = 'https://fmcdqarhrjvdbkakacxj.supabase.co'
-const supabaseAnonKey = 'sb_publishable_pmMXd5Qy_G7B9jYJsRofcA_4hreNNGf'
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Cliente de la página del dueño (index.html). La sesión se guarda con la clave por defecto.
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)

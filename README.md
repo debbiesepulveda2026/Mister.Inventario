@@ -1,6 +1,13 @@
 # Mister Inventario
 
-POS e inventario para un comercio, construido con React, TypeScript, Vite, Tailwind CSS y Supabase.
+Sistema de punto de venta (POS) e inventario para almacenes. Usa React, TypeScript, Vite, Tailwind CSS y Supabase.
+
+Tiene **dos páginas** que trabajan sobre el mismo proyecto de Supabase:
+
+| Página | Para quién | Qué hace |
+|---|---|---|
+| `index.html` | Dueño del almacén (y la administradora) | Login con correo y clave, recuperación de clave, inscripción del almacén, panel, productos, fiados, personal, proveedores, cajas, contabilidad y datos de la empresa. |
+| `ventas.html` | Cajeras | Vender (efectivo, tarjeta y fiado), crear productos con calculadora de margen, crear clientes de fiado, y abrir y cerrar la caja. **No muestra el panel del dueño.** |
 
 ## Desarrollo
 
@@ -8,24 +15,74 @@ Requiere Node.js 20 o superior.
 
 ```sh
 npm install
-npm run dev
+npm run dev        # http://localhost:5173/ (dueño) y http://localhost:5173/ventas.html (caja)
+npm run build      # genera dist/index.html y dist/ventas.html
 ```
 
-La URL y la clave anon del proyecto se configuran en `src/lib/supabase.ts`; se pueden sustituir con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. La clave anon es pública y nunca debe confundirse con una `service_role`.
+La URL y la clave pública de Supabase están en `src/lib/config.ts` y se pueden reemplazar con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. Esa clave es pública; nunca pongas ahí una `service_role`.
 
-## Datos y seguridad
+## Configuración en Supabase (una sola vez)
 
-En el SQL Editor del proyecto ejecuta, en este orden, `supabase/schema.sql` y `supabase/tenant_migration.sql`. Habilita el registro por correo y la confirmación de correo en Supabase Auth. El alta crea una solicitud pendiente; no crea la empresa ni concede membresía hasta la aprobación de `debbie.sepulveda2026@soymas.cl`. Al aprobar, la cuenta recibe un almacén vacío y el rol `owner`. Los datos quedan aislados por empresa.
+1. **SQL Editor**: ejecuta en este orden `supabase/schema.sql`, `supabase/tenant_migration.sql` y `supabase/ventas_migration.sql`. Si los dos primeros ya estaban ejecutados, basta con el tercero. Todos se pueden volver a ejecutar sin perder datos.
+2. **Authentication → Sign In / Providers**:
+   - Email: habilitado, con confirmación de correo.
+   - **Allow anonymous sign-ins: activado**. Las cajas inician sesión así. Sin esto no se puede vincular ninguna caja.
+3. **Authentication → URL Configuration**:
+   - *Site URL*: la dirección pública de la app, por ejemplo `https://mister-inventario.cl/`.
+   - *Redirect URLs*: agrega esa misma dirección. Ahí llega el enlace de **“¿Olvidaste tu clave?”**.
+4. (Opcional) Aviso por correo a la administradora: ver la sección *Aviso por correo*.
 
-La administradora inicia sesión con ese correo en la misma app para ver la bandeja y aprobar o rechazar solicitudes. Las cuentas existentes antes de esta migración conservan su membresía anterior; las altas nuevas quedan pendientes.
+## Cómo funciona
 
-`owner` y `admin` pueden consultar ventas y costos. `cashier` puede usar POS, cerrar cajas abiertas y crear, modificar o eliminar productos, pero las políticas RLS le impiden leer ventas o costos. `product_financials` guarda el costo separado del catálogo. El margen se calcula sobre el precio final: `precio = costo / (1 - margen / 100)`.
+### Alta de un almacén
 
-Para dar acceso de cajera a una cuenta Supabase existente, agrega su UUID a `company_members` con el `company_id` del almacén y `role = 'cashier'`. Los PIN del módulo de personal por sí solos no crean una sesión Supabase.
+El dueño entra a `index.html`, elige *Inscribe tu almacén* y completa RUT, razón social, giro, dirección, correo y clave. La solicitud queda pendiente. La administradora (`debbie.sepulveda2026@soymas.cl`) inicia sesión en la misma página, ve la bandeja de solicitudes y aprueba o rechaza. Al aprobar se crea el almacén vacío y la cuenta queda como `owner`.
 
-### Aviso por correo
+### Recuperar la clave
 
-Los secretos de envío deben configurarse en Supabase, nunca en React. Verifica un dominio remitente en Resend; instala y enlaza Supabase CLI, y configura los valores:
+En el login, *¿Olvidaste tu clave?* pide el correo y Supabase envía un enlace. Al abrirlo, la página muestra el formulario *Crea tu clave nueva*. Solo se necesita acceso al correo.
+
+### Vincular una caja
+
+Se hace una vez en cada computador o tablet de venta. Abre `ventas.html` en ese equipo y elige una de estas formas:
+
+- **Clave del dueño**: el dueño escribe su correo y clave ahí mismo. La clave se usa una vez para autorizar y **no queda guardada** en el equipo.
+- **Código de caja**: en su panel, *Centro de cajas → Vincular caja*, el dueño genera un código de 8 caracteres que dura 15 minutos y sirve una sola vez.
+
+La caja queda con el rol `cashier`. Si se pierde un equipo, el dueño lo desvincula en *Centro de cajas*.
+
+### Turnos con PIN
+
+En *Personal*, el dueño agrega a cada cajera con un PIN de 4 a 8 dígitos. En la caja, la cajera toca su nombre y escribe su PIN. El PIN se verifica en Supabase (bcrypt) y se bloquea 5 minutos después de 5 intentos fallidos. Nadie puede leer los PIN, solo cambiarlos.
+
+> Los PIN creados con la versión anterior se borran al ejecutar `ventas_migration.sql`, porque estaban cifrados en el navegador y no se pueden verificar en el servidor. **El dueño debe volver a asignarlos.**
+
+### Qué puede hacer cada rol
+
+| Acción | Dueño (`owner`/`admin`) | Caja (`cashier`) |
+|---|---|---|
+| Vender en efectivo, tarjeta y fiado | Desde `ventas.html` | ✔ |
+| Crear y editar productos | ✔ | ✔ |
+| Ver y guardar costos, y usar la calculadora de margen | ✔ | ✔ |
+| Eliminar productos | ✔ | — |
+| Crear clientes de fiado | ✔ | ✔ (con el límite por defecto del almacén) |
+| Cambiar el límite de fiado y registrar abonos | ✔ | — |
+| Ver ventas, reportes y arqueos | ✔ | Solo las ventas de su turno en ese equipo |
+| Personal, proveedores, empresa y cajas | ✔ | — |
+
+El **límite de fiado por defecto** para los clientes que crea la cajera se define en *Empresa y SII*. Parte en $30.000.
+
+El margen se calcula sobre el precio final: `precio = costo / (1 − margen / 100)`.
+
+### Sin conexión
+
+Las ventas se guardan en el equipo (IndexedDB, con respaldo en LocalStorage) y se suben solas cuando vuelve internet. Para iniciar un turno, crear un cliente o cerrar la caja se necesita conexión. Si una venta a fiado supera el límite al sincronizarse, queda pendiente y la caja muestra un aviso.
+
+La cámara usa `BarcodeDetector` cuando el navegador lo soporta, y necesita HTTPS y permiso. Un lector USB funciona escribiendo el código en el buscador y presionando Enter.
+
+## Aviso por correo
+
+Los secretos de envío se configuran en Supabase, nunca en React. Verifica un dominio remitente en Resend y luego:
 
 ```sh
 npx supabase login
@@ -34,12 +91,22 @@ npx supabase secrets set RESEND_API_KEY=re_xxx RESEND_FROM="Mister Inventario <a
 npx supabase functions deploy notify-store-signup --no-verify-jwt
 ```
 
-Reemplaza `re_xxx`, el remitente y `APP_URL` con tus valores reales. La Edge Function valida que exista una solicitud pendiente antes de enviar el aviso a la administradora. Sin el secreto de Resend y un remitente verificado, el registro queda guardado, pero el correo no se enviará.
+Sin el secreto de Resend y un remitente verificado, la solicitud se guarda igual, pero el correo no sale.
 
-Las ventas y el catálogo se guardan en IndexedDB con respaldo en LocalStorage y nombres de caché separados por empresa. Las ventas pendientes se reintentan al recuperar la conexión. La cámara usa `BarcodeDetector` cuando el navegador lo soporta; requiere HTTPS y permiso de cámara. También se genera un SKU interno aleatorio para cada producto.
+## DTE
 
-## DTE y credenciales de personal
+El comprobante que imprime la caja es interno y no es una boleta electrónica. La emisión ante el SII requiere un proveedor DTE certificado y un backend propio que maneje folios, firma y envío. No ingreses claves privadas en el navegador.
 
-La interfaz de empresa muestra el encabezado DTE en los comprobantes, pero una boleta visual no es un documento tributario emitido. La emisión del SII requiere un proveedor DTE certificado y un backend que gestione folios, firma, envío y respuesta. No ingreses claves privadas en el cliente. Configura un endpoint servidor propio antes de enviar credenciales.
+## Estructura
 
-Los PIN se guardan con PBKDF2 y sal, nunca en texto plano; los permisos por columna impiden leer los hashes desde la aplicación. La autenticación de personal con PIN y los intentos limitados deben implementarse en una función de servidor antes de usar los PIN como mecanismo independiente de inicio de sesión.
+```
+index.html            → src/main.tsx → src/App.tsx            (panel del dueño)
+ventas.html           → src/ventas-main.tsx → src/Ventas.tsx  (caja)
+src/components/       pantallas y formularios compartidos
+src/lib/config.ts     URL y clave pública de Supabase
+src/lib/supabase.ts   cliente del dueño
+src/lib/supabaseVentas.ts  cliente de la caja (sesión separada)
+src/lib/shared.ts     tipos y utilidades
+src/lib/offline.ts    cola de ventas sin conexión
+supabase/*.sql        base de datos, seguridad (RLS) y funciones
+```
