@@ -73,7 +73,7 @@ En *Personal*, el dueño agrega a cada cajera con un PIN de 4 a 8 dígitos. En l
 
 ### Cuenta de fiado
 
-En *Clientes fiado* (caja y panel), **Ver cuenta** muestra lo que debe el cliente, su límite y cada movimiento: los fiados con fecha y productos, y los abonos con fecha, forma de pago y quién los recibió. Ahí mismo se registra un abono (efectivo o transferencia), se agrega o corrige el WhatsApp del cliente y el botón **Cobrar por WhatsApp** abre WhatsApp con un mensaje listo con el saldo. Los abonos en efectivo se suman al efectivo esperado al cerrar la caja.
+En *Clientes fiado* (caja y panel), **Ver cuenta** muestra lo que debe el cliente, su límite y cada movimiento: los fiados con fecha y productos, y los abonos con fecha, forma de pago y quién los recibió. Ahí mismo se registra un abono (efectivo o transferencia, con fecha), se **anota un fiado a mano** para deudas que no pasaron por la caja, como las del cuaderno (monto, fecha y qué llevó; la cajera respeta el límite, el dueño puede pasarlo), se agrega o corrige el WhatsApp del cliente y el botón **Cobrar por WhatsApp** abre WhatsApp con un mensaje listo con el saldo. Los abonos en efectivo se suman al efectivo esperado al cerrar la caja.
 
 El **límite de fiado por defecto** para los clientes que crea la cajera se define en *Empresa y SII*. Parte en $30.000.
 

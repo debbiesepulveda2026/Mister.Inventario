@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ArrowDownLeft, Check, HeartHandshake, MessageCircle, Pencil, ShoppingBag } from 'lucide-react'
+import { ArrowDownLeft, Check, HeartHandshake, MessageCircle, Pencil, Plus, ShoppingBag } from 'lucide-react'
 import { ModalHeading } from './common'
 import { errorDetail, money, whatsappDigits, type Customer } from '../lib/shared'
 
 type Movement = { kind: 'fiado' | 'abono'; movement_id: string; happened_at: string; amount: number; detail: string }
 
 const dateTime = new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+const todayValue = () => { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); return now.toISOString().slice(0, 10) }
+// Si la fecha es hoy se usa la hora actual; si es otro día, el mediodía de ese día.
+const dateParam = (value: string) => !value || value === todayValue() ? null : new Date(`${value}T12:00:00`).toISOString()
 
 export function whatsappChargeUrl(customer: Customer, storeName: string) {
   const phone = whatsappDigits(customer.phone)
@@ -18,12 +21,13 @@ export function whatsappChargeUrl(customer: Customer, storeName: string) {
 
 // Cuenta de un cliente de fiado: saldo, movimientos, abonos y cobro por WhatsApp.
 // La usan la página de ventas y el panel del dueño.
-export function CustomerAccount({ client, customer, storeName, receivedBy, online, onUpdated, onNotice }: {
+export function CustomerAccount({ client, customer, storeName, receivedBy, online, canExceedLimit = false, onUpdated, onNotice }: {
   client: SupabaseClient
   customer: Customer
   storeName: string
   receivedBy: string
   online: boolean
+  canExceedLimit?: boolean
   onUpdated: (customer: Customer, cashPayment?: number) => void
   onNotice: (message: string) => void
 }) {
@@ -32,6 +36,9 @@ export function CustomerAccount({ client, customer, storeName, receivedBy, onlin
   const [loadError, setLoadError] = useState('')
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState<'cash' | 'transfer'>('cash')
+  const [action, setAction] = useState<'abono' | 'fiado'>(customer.balance > 0 ? 'abono' : 'fiado')
+  const [when, setWhen] = useState(todayValue())
+  const [note, setNote] = useState('')
   const [phone, setPhone] = useState(customer.phone)
   const [editingPhone, setEditingPhone] = useState(!customer.phone)
   const [busy, setBusy] = useState(false)
@@ -64,12 +71,28 @@ export function CustomerAccount({ client, customer, storeName, receivedBy, onlin
     if (value > customer.balance) { setError(`El abono no puede ser mayor que lo que debe (${money(customer.balance)}).`); return }
     if (!online) { setError('Conéctate a internet para registrar el abono.'); return }
     setBusy(true); setError('')
-    const { data, error: rpcError } = await client.rpc('record_customer_payment', { payment_customer: customer.id, payment_amount: value, paid_with: method, received_name: receivedBy })
+    const { data, error: rpcError } = await client.rpc('record_customer_payment', { payment_customer: customer.id, payment_amount: value, paid_with: method, received_name: receivedBy, paid_on: dateParam(when) })
     setBusy(false)
     if (rpcError || typeof data !== 'number') { setError('No se pudo registrar el abono.' + errorDetail(rpcError)); return }
-    onUpdated({ ...customer, balance: data }, method === 'cash' ? value : 0)
+    onUpdated({ ...customer, balance: data }, method === 'cash' && when === todayValue() ? value : 0)
     onNotice(`Abono de ${money(value)} registrado. Ahora debe ${money(data)}.`)
-    setAmount('')
+    setAmount(''); setWhen(todayValue())
+    void load()
+  }
+
+  async function saveCharge(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const value = Math.round(Number(amount))
+    if (!value || value <= 0) { setError('Escribe el monto del fiado.'); return }
+    if (!canExceedLimit && customer.balance + value > customer.credit_limit) { setError(`Supera el límite. Le quedan ${money(available)} disponibles; para anotar más, pídele al dueño que suba el límite.`); return }
+    if (!online) { setError('Conéctate a internet para anotar el fiado.'); return }
+    setBusy(true); setError('')
+    const { data, error: rpcError } = await client.rpc('record_customer_charge', { target_customer: customer.id, charge_amount: value, charge_note: note, charge_date: dateParam(when), created_name: receivedBy })
+    setBusy(false)
+    if (rpcError || typeof data !== 'number') { setError((rpcError?.message.includes('credit limit') ? 'Supera el límite de crédito del cliente.' : 'No se pudo anotar el fiado.') + errorDetail(rpcError)); return }
+    onUpdated({ ...customer, balance: data })
+    onNotice(`Fiado de ${money(value)} anotado. Ahora debe ${money(data)}.`)
+    setAmount(''); setNote(''); setWhen(todayValue())
     void load()
   }
 
@@ -101,14 +124,31 @@ export function CustomerAccount({ client, customer, storeName, receivedBy, onlin
         : null}
     </div>
 
-    {customer.balance > 0 && <form className="account-payment" onSubmit={(event) => void savePayment(event)}>
-      <label className="form-label">Abono<div className="money-input"><span>$</span><input type="number" min="1" max={customer.balance} step="1" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0"/></div></label>
-      <div className="method-toggle" role="radiogroup" aria-label="Forma de pago">
-        <button type="button" role="radio" aria-checked={method === 'cash'} className={method === 'cash' ? 'chosen' : ''} onClick={() => setMethod('cash')}>Efectivo</button>
-        <button type="button" role="radio" aria-checked={method === 'transfer'} className={method === 'transfer' ? 'chosen' : ''} onClick={() => setMethod('transfer')}>Transferencia</button>
+    <div className="account-actions">
+      <div className="method-toggle account-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={action === 'abono'} className={action === 'abono' ? 'chosen' : ''} onClick={() => { setAction('abono'); setError('') }}><ArrowDownLeft size={13}/> Registrar abono</button>
+        <button type="button" role="tab" aria-selected={action === 'fiado'} className={action === 'fiado' ? 'chosen' : ''} onClick={() => { setAction('fiado'); setError('') }}><Plus size={13}/> Anotar fiado</button>
       </div>
-      <button className="button button-dark" type="submit" disabled={busy}><ArrowDownLeft size={15}/> {busy ? 'Guardando…' : 'Registrar abono'}</button>
-    </form>}
+      {action === 'abono'
+        ? (customer.balance > 0
+          ? <form className="account-payment" onSubmit={(event) => void savePayment(event)}>
+              <label className="form-label">Monto<div className="money-input"><span>$</span><input type="number" min="1" max={customer.balance} step="1" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0"/></div></label>
+              <label className="form-label">Fecha<input type="date" value={when} max={todayValue()} onChange={(event) => setWhen(event.target.value)}/></label>
+              <div className="method-toggle" role="radiogroup" aria-label="Forma de pago">
+                <button type="button" role="radio" aria-checked={method === 'cash'} className={method === 'cash' ? 'chosen' : ''} onClick={() => setMethod('cash')}>Efectivo</button>
+                <button type="button" role="radio" aria-checked={method === 'transfer'} className={method === 'transfer' ? 'chosen' : ''} onClick={() => setMethod('transfer')}>Transferencia</button>
+              </div>
+              <button className="button button-dark" type="submit" disabled={busy}><Check size={15}/> {busy ? 'Guardando…' : 'Guardar abono'}</button>
+            </form>
+          : <p className="account-empty">No debe nada, no hay nada que abonar.</p>)
+        : <form className="account-payment account-charge" onSubmit={(event) => void saveCharge(event)}>
+            <label className="form-label">Monto<div className="money-input"><span>$</span><input type="number" min="1" step="1" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0"/></div></label>
+            <label className="form-label">Fecha<input type="date" value={when} max={todayValue()} onChange={(event) => setWhen(event.target.value)}/></label>
+            <label className="form-label account-note-input">Qué llevó<input value={note} maxLength={200} onChange={(event) => setNote(event.target.value)} placeholder="Ej. pan, bebidas y cigarros"/></label>
+            <button className="button button-dark" type="submit" disabled={busy}><Check size={15}/> {busy ? 'Guardando…' : 'Guardar fiado'}</button>
+          </form>}
+      {action === 'fiado' && <p className="account-hint">Para deudas que no pasaron por la caja, como las del cuaderno. Las ventas a fiado hechas en la caja se anotan solas.</p>}
+    </div>
     {error && <p className="auth-error" role="alert">{error}</p>}
 
     <div className="account-movements">

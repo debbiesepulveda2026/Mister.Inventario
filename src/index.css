@@ -530,3 +530,18 @@ td:first-child { min-width: 190px; }
   .account-payment { grid-template-columns: 1fr; }
   .account-phone .whatsapp-button { margin-left: 0; width: 100%; }
 }
+.account-actions { margin-bottom: 10px; }
+.account-tabs { height: 36px; margin-bottom: 8px; }
+.account-tabs button { display: inline-flex; align-items: center; gap: 5px; }
+.account-payment { grid-template-columns: minmax(0, 1fr) minmax(0, 150px) auto auto; }
+.account-charge { grid-template-columns: minmax(0, 140px) minmax(0, 150px) minmax(0, 1fr) auto; }
+.account-payment input[type="date"] { width: 100%; height: 38px; padding: 0 8px; border: 1px solid #e3e7df; border-radius: 6px; background: #fffefa; font-size: 12px; }
+.account-note-input input { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #e3e7df; border-radius: 6px; background: #fffefa; font-size: 12px; }
+.account-hint, .account-empty { margin: 4px 0 0; font-size: 10px; color: var(--muted); line-height: 1.5; }
+.account-empty { padding: 12px; border: 1px dashed #dfe3da; border-radius: 8px; font-size: 11px; }
+@media (max-width: 680px) { .account-payment, .account-charge { grid-template-columns: 1fr; } }
+.account-payment, .account-charge { grid-template-columns: 1fr 1fr; }
+.account-charge .account-note-input { grid-column: 1 / -1; }
+.account-charge > .button { grid-column: 1 / -1; justify-self: end; }
+.account-payment .method-toggle { align-self: end; }
+.account-payment > .button { justify-self: end; }
