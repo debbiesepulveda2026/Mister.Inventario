@@ -19,11 +19,11 @@ npm run dev        # http://localhost:5173/ (dueño) y http://localhost:5173/ven
 npm run build      # genera dist/index.html y dist/ventas.html
 ```
 
-La URL y la clave pública de Supabase están en `src/lib/config.ts` y se pueden reemplazar con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. Esa clave es pública; nunca pongas ahí una `service_role`.
+La URL y la clave pública de Supabase están fijas en `src/lib/config.ts`. Si cambias de proyecto o de clave, edítalas ahí. Esa clave es pública; nunca pongas ahí una `service_role`.
 
 ## Configuración en Supabase (una sola vez)
 
-1. **SQL Editor**: ejecuta en este orden `supabase/schema.sql`, `supabase/tenant_migration.sql` y `supabase/ventas_migration.sql`. Si los dos primeros ya estaban ejecutados, basta con el tercero. Todos se pueden volver a ejecutar sin perder datos.
+1. **SQL Editor**: ejecuta en este orden `supabase/schema.sql`, `supabase/tenant_migration.sql`, `supabase/ventas_migration.sql` y `supabase/fiados_migration.sql`. Todos se pueden volver a ejecutar sin perder datos. Si alguna vez vuelves a ejecutar uno de los primeros, ejecuta después los que le siguen.
 2. **Authentication → Sign In / Providers**:
    - Email: habilitado, con confirmación de correo.
    - **Allow anonymous sign-ins: activado**. Las cajas inician sesión así. Sin esto no se puede vincular ninguna caja.
@@ -66,9 +66,14 @@ En *Personal*, el dueño agrega a cada cajera con un PIN de 4 a 8 dígitos. En l
 | Ver y guardar costos, y usar la calculadora de margen | ✔ | ✔ |
 | Eliminar productos | ✔ | — |
 | Crear clientes de fiado | ✔ | ✔ (con el límite por defecto del almacén) |
-| Cambiar el límite de fiado y registrar abonos | ✔ | — |
+| Registrar abonos y editar el WhatsApp del cliente | ✔ | ✔ |
+| Cambiar el límite de fiado | ✔ | — |
 | Ver ventas, reportes y arqueos | ✔ | Solo las ventas de su turno en ese equipo |
 | Personal, proveedores, empresa y cajas | ✔ | — |
+
+### Cuenta de fiado
+
+En *Clientes fiado* (caja y panel), **Ver cuenta** muestra lo que debe el cliente, su límite y cada movimiento: los fiados con fecha y productos, y los abonos con fecha, forma de pago y quién los recibió. Ahí mismo se registra un abono (efectivo o transferencia), se agrega o corrige el WhatsApp del cliente y el botón **Cobrar por WhatsApp** abre WhatsApp con un mensaje listo con el saldo. Los abonos en efectivo se suman al efectivo esperado al cerrar la caja.
 
 El **límite de fiado por defecto** para los clientes que crea la cajera se define en *Empresa y SII*. Parte en $30.000.
 

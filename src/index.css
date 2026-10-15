@@ -488,3 +488,45 @@ td:first-child { min-width: 190px; }
 .auth-form form > label { display: grid; gap: 7px; color: #4a5b4f; font-size: 10px; font-weight: 700; }
 .auth-form form > label input { width: 100%; height: 42px; padding: 0 11px; border: 1px solid #e3e7df; border-radius: 5px; background: #fffefa; color: #26382e; font-size: 11px; font-weight: 400; }
 .auth-form form > label input::placeholder { color: #aab1aa; letter-spacing: normal; font-weight: 400; }
+
+/* ===== Cuenta de fiado ===== */
+.clickable-row { cursor: pointer; }
+.clickable-row:hover td { background: #f7faf3; }
+.whatsapp-icon { color: #1f9d55; }
+.whatsapp-button { background: #25d366; color: #fff; text-decoration: none; }
+.whatsapp-button:hover { background: #1ebe5a; }
+.account-summary { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 8px; margin: 4px 0 14px; }
+.account-summary > div { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; display: grid; gap: 4px; }
+.account-summary span { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.account-summary strong { font: 800 16px 'Manrope', sans-serif; color: #26352d; }
+.account-summary .account-due strong { font-size: 22px; }
+.account-phone { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; font-size: 12px; color: #3a5144; }
+.account-phone > span { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.account-phone input { flex: 1; min-width: 160px; height: 34px; padding: 0 10px; border: 1px solid #e3e7df; border-radius: 6px; background: #fffefa; font-size: 12px; }
+.account-phone .whatsapp-button { margin-left: auto; }
+.account-payment { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: end; padding: 12px; border: 1px dashed #cfdcc9; border-radius: 8px; background: #f6faf2; margin-bottom: 10px; }
+.account-payment .form-label { margin: 0; }
+.method-toggle { display: inline-flex; gap: 4px; padding: 3px; border-radius: 7px; background: #eef1ea; height: 38px; }
+.method-toggle button { border: 0; border-radius: 5px; padding: 0 10px; background: transparent; font-size: 11px; font-weight: 700; color: #5d6b61; cursor: pointer; }
+.method-toggle button.chosen { background: #fffefa; color: var(--green); box-shadow: 0 1px 4px rgba(34,48,40,.1); }
+.account-movements h3 { margin: 14px 0 8px; font: 800 13px 'Manrope', sans-serif; color: #26352d; }
+.account-movements ul { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.movement { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #f0f0eb; }
+.movement:last-child { border-bottom: 0; }
+.movement-icon { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; }
+.movement-fiado .movement-icon { background: #fdeee8; color: #b4553d; }
+.movement-abono .movement-icon { background: #e4f1e2; color: #2f7a4b; }
+.movement-main { display: grid; gap: 2px; min-width: 0; }
+.movement-main strong { font-size: 12px; color: #26352d; }
+.movement-main small { font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.movement-amount { display: grid; justify-items: end; gap: 2px; }
+.movement-fiado .movement-amount strong { color: #b4553d; font-size: 12px; }
+.movement-abono .movement-amount strong { color: #2f7a4b; font-size: 12px; }
+.movement-amount small { font-size: 10px; color: var(--muted); }
+.account-note { margin: 8px 0 0; font-size: 10px; color: var(--muted); }
+@media (max-width: 680px) {
+  .account-summary { grid-template-columns: 1fr 1fr; }
+  .account-summary .account-due { grid-column: 1 / -1; }
+  .account-payment { grid-template-columns: 1fr; }
+  .account-phone .whatsapp-button { margin-left: 0; width: 100%; }
+}
