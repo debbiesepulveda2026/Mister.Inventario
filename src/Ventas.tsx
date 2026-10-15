@@ -7,7 +7,7 @@ import {
 import { ventasSupabase as client } from './lib/supabaseVentas'
 import { cacheProducts, getCachedProducts, getPendingSales, removePendingSale, savePendingSale, type PendingSale } from './lib/offline'
 import {
-  emptyCompany, initials, makeId, money, paymentLabel, shortDate,
+  emptyCompany, errorDetail, initials, makeId, money, paymentLabel, shortDate,
   type BarcodeScanner, type CompanyProfile, type Customer, type Employee, type OpenCash, type Product, type Sale,
 } from './lib/shared'
 import { Brand, EmptyTable, Metric, ModalHeading } from './components/common'
@@ -144,7 +144,7 @@ export default function Ventas() {
     if (productResult.data) { setProducts(productResult.data as Product[]); await cacheProducts(productResult.data, tenantId) }
     if (customerResult.data) { setCustomers(customerResult.data as Customer[]); writeJson(`mister-ventas-customers:${tenantId}`, customerResult.data) }
     if (employeeResult.data) { setEmployees(employeeResult.data as Employee[]); writeJson(`mister-ventas-employees:${tenantId}`, employeeResult.data) }
-    else if (employeeResult.error) setStageError('Falta ejecutar ventas_migration.sql (columna pin_set).')
+    else if (employeeResult.error) setStageError('No se pudo cargar al personal.' + errorDetail(employeeResult.error))
     if (cashResult.data) {
       const session: OpenCash = { id: cashResult.data.id, openedAt: cashResult.data.opened_at, openingAmount: cashResult.data.opening_amount, cashier: cashResult.data.cashier_name }
       setOpenCash(session); writeJson(`mister-open-cash:${tenantId}`, session)
@@ -309,7 +309,7 @@ export default function Ventas() {
     const form = new FormData(event.currentTarget)
     const draft = { id: makeId(), company_id: companyId, name: String(form.get('name')).trim(), rut: String(form.get('rut')).trim(), phone: String(form.get('phone')).trim(), credit_limit: company.default_credit_limit, balance: 0 }
     const { data, error } = await client.from('customers').insert(draft).select('id,name,rut,phone,credit_limit,balance').single()
-    if (error || !data) return setNotice('No se pudo crear el cliente. Revisa que esté ejecutado ventas_migration.sql.')
+    if (error || !data) return setNotice('No se pudo crear el cliente.' + errorDetail(error))
     const next = [...customers, data as Customer].sort((a, b) => a.name.localeCompare(b.name))
     setCustomers(next); writeJson(`mister-ventas-customers:${companyId}`, next)
     setNotice(`Cliente creado con límite de ${money((data as Customer).credit_limit)}`)

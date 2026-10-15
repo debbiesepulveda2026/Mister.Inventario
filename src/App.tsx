@@ -9,7 +9,7 @@ import { supabase } from './lib/supabase'
 import { APPROVER_EMAIL } from './lib/config'
 import { cacheProducts, getCachedProducts, getPendingSales, removePendingSale, type PendingSale } from './lib/offline'
 import {
-  emptyCompany, initials, makeId, money, paymentLabel, whatsappDigits,
+  emptyCompany, errorDetail, initials, makeId, money, paymentLabel, whatsappDigits,
   type CompanyProfile, type Customer, type Employee, type MemberRole, type Product, type Sale, type Supplier,
 } from './lib/shared'
 import { EmptyTable, Brand, Metric, ModalHeading } from './components/common'
@@ -47,6 +47,7 @@ function App() {
   const [sales, setSales] = useState<Sale[]>([])
   const [cashSessions, setCashSessions] = useState<CashSessionRow[]>([])
   const [terminals, setTerminals] = useState<Terminal[]>([])
+  const [terminalError, setTerminalError] = useState('')
   const [terminalCode, setTerminalCode] = useState<{ code: string; label: string; expiresAt: number } | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
   const [query, setQuery] = useState('')
@@ -172,7 +173,7 @@ function App() {
       if (productResult.data) { setProducts(productResult.data as Product[]); await cacheProducts(productResult.data, tenantId) }
       if (customerResult.data) setCustomers(customerResult.data as Customer[])
       if (employeeResult.data) setEmployees(employeeResult.data as Employee[])
-      else if (employeeResult.error) setNotice('Falta ejecutar ventas_migration.sql en Supabase para ver al personal.')
+      else if (employeeResult.error) setNotice('No se pudo cargar al personal.' + errorDetail(employeeResult.error))
       if (supplierResult.data) setSuppliers(supplierResult.data as Supplier[])
       if (salesResult.data) setSales(salesResult.data.map((sale) => ({ ...sale, items: [] })) as Sale[])
       await Promise.all([loadCashSessions(tenantId), loadTerminals(tenantId)])
@@ -318,10 +319,10 @@ function App() {
       active: form.get('active') === 'on', pin_set: Boolean(pin) || Boolean(editingEmployee?.pin_set),
     }
     const { error } = await supabase.from('employees').upsert({ id: employee.id, name: employee.name, rut: employee.rut, active: employee.active, company_id: companyId })
-    if (error) return setNotice('No se pudo guardar. Revisa que esté ejecutado ventas_migration.sql.')
+    if (error) return setNotice('No se pudo guardar.' + errorDetail(error))
     if (pin) {
       const { error: pinError } = await supabase.rpc('set_employee_pin', { target_employee: employee.id, new_pin: pin })
-      if (pinError) { setNotice('Persona guardada, pero no se pudo asignar el PIN. Ejecuta ventas_migration.sql.'); employee.pin_set = Boolean(editingEmployee?.pin_set) }
+      if (pinError) { setNotice('Persona guardada, pero no se pudo asignar el PIN.' + errorDetail(pinError)); employee.pin_set = Boolean(editingEmployee?.pin_set) }
     }
     setEmployees((items) => editingEmployee ? items.map((item) => item.id === employee.id ? employee : item) : [employee, ...items])
     setEditingEmployee(null); setModal(null)
@@ -353,7 +354,7 @@ function App() {
     localStorage.setItem(`mister-company:${userId}:profile`, JSON.stringify(nextCompany))
     if (!navigator.onLine) return setNotice('Guardado en este equipo; conéctate para subirlo')
     const { error } = await supabase.from('companies').update(config).eq('id', companyId)
-    if (error) return setNotice('No se pudo guardar. Revisa que esté ejecutado ventas_migration.sql.')
+    if (error) return setNotice('No se pudo guardar.' + errorDetail(error))
     if (dteKey) {
       if (!company.dte_endpoint) return setNotice('Configura una URL segura del servidor DTE para enviar el certificado')
       const response = await fetch(company.dte_endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...config, credential: dteKey }) })
@@ -366,8 +367,9 @@ function App() {
   async function createTerminalCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const label = String(new FormData(event.currentTarget).get('label') ?? 'Caja').trim() || 'Caja'
+    setTerminalError('')
     const { data, error } = await supabase.rpc('create_terminal_code', { terminal_label: label })
-    if (error || typeof data !== 'string') return setNotice('No se pudo generar el código. Ejecuta ventas_migration.sql en Supabase.')
+    if (error || typeof data !== 'string') return setTerminalError('No se pudo generar el código.' + (errorDetail(error) || ' Supabase no devolvió un código.'))
     setTerminalCode({ code: data, label, expiresAt: Date.now() + 15 * 60 * 1000 })
   }
 
@@ -470,7 +472,7 @@ function App() {
         {screen === 'suppliers' && <SupplierManagement suppliers={suppliers} ownerPhone={company.order_whatsapp} onCreate={() => { setEditingSupplier(null); setModal('supplier') }} onEdit={(supplier) => { setEditingSupplier(supplier); setModal('supplier') }} onDelete={(supplier) => void deleteSupplier(supplier)}/>}
 
         {screen === 'cash' && <section className="workspace cash-workspace">
-          <div className="page-heading"><div><p className="eyebrow">CONTROL DE CAJA</p><h1>Centro de cajas</h1><p className="muted">Equipos autorizados para vender y arqueos de cada turno.</p></div><button className="button button-accent" onClick={() => { setTerminalCode(null); setModal('terminal-code') }}><Link2 size={16}/> Vincular caja</button></div>
+          <div className="page-heading"><div><p className="eyebrow">CONTROL DE CAJA</p><h1>Centro de cajas</h1><p className="muted">Equipos autorizados para vender y arqueos de cada turno.</p></div><button className="button button-accent" onClick={() => { setTerminalCode(null); setTerminalError(''); setModal('terminal-code') }}><Link2 size={16}/> Vincular caja</button></div>
           <div className="metric-strip"><Metric icon={Wallet} label="Estado actual" value={openSession ? 'Caja abierta' : 'Caja cerrada'} detail={openSession ? `Atiende ${openSession.cashier_name}` : 'Sin turno activo'}/><Metric icon={CircleDollarSign} label="Efectivo de hoy" value={money(todayCash)} detail={`${todaySales.length} ventas en total`}/><Metric icon={Monitor} label="Cajas vinculadas" value={String(terminals.length)} detail="equipos que pueden vender"/></div>
           <div className="table-panel"><div className="table-toolbar"><div><h2>Cajas vinculadas</h2><span>Si pierdes un equipo, desvincúlalo aquí</span></div></div><div className="table-scroll"><table><thead><tr><th>CAJA</th><th>VINCULADA</th><th>ÚLTIMO USO</th><th></th></tr></thead><tbody>{terminals.map((terminal) => <tr key={terminal.user_id}><td><strong>{terminal.label}</strong></td><td>{new Intl.DateTimeFormat('es-CL', { dateStyle: 'medium' }).format(new Date(terminal.created_at))}</td><td>{terminal.last_seen_at ? new Intl.DateTimeFormat('es-CL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(terminal.last_seen_at)) : '—'}</td><td><div className="row-actions"><button className="button button-small button-light" onClick={() => void revokeTerminal(terminal)}><Unlink size={14}/> Desvincular</button></div></td></tr>)}</tbody></table>{!terminals.length && <EmptyTable text="Aún no hay cajas. Usa “Vincular caja” y abre la página de ventas en el equipo de venta."/>}</div></div>
           <div className="table-panel"><div className="table-toolbar"><div><h2>Arqueos</h2><span>Últimos 30 turnos</span></div><button className="button button-small button-light" onClick={() => void loadCashSessions(companyId)}><ArrowLeftRight size={14}/> Actualizar</button></div><div className="table-scroll"><table><thead><tr><th>APERTURA</th><th>CIERRE</th><th>CAJERA</th><th>FONDO</th><th>ESPERADO</th><th>CONTADO</th><th>DIFERENCIA</th></tr></thead><tbody>{cashSessions.map((session) => <tr key={session.id}><td>{new Intl.DateTimeFormat('es-CL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(session.opened_at))}</td><td>{session.closed_at ? new Intl.DateTimeFormat('es-CL', { timeStyle: 'short' }).format(new Date(session.closed_at)) : <span className="status-pill status-active"><i/>Abierta</span>}</td><td>{session.cashier_name}</td><td>{money(session.opening_amount)}</td><td>{session.expected_amount === null ? '—' : money(session.expected_amount)}</td><td>{session.actual_amount === null ? '—' : money(session.actual_amount)}</td><td>{session.difference === null ? '—' : <strong className={session.difference < 0 ? 'balance-due' : 'balance-clear'}>{money(session.difference)}</strong>}</td></tr>)}</tbody></table>{!cashSessions.length && <EmptyTable text="Todavía no hay turnos registrados."/>}</div></div>
@@ -555,7 +557,7 @@ function App() {
         {modal === 'product' && <ProductForm client={supabase} companyId={companyId} product={editingProduct} online={online} suppliers={suppliers} onError={setNotice} onSaved={(saved, message) => { const next = editingProduct ? products.map((item) => item.id === saved.id ? saved : item) : [saved, ...products]; setProducts(next); void cacheProducts(next, companyId); setEditingProduct(null); setModal(null); setNotice(message) }}/>}
         {modal === 'customer' && <><ModalHeading icon={HeartHandshake} title={editingCustomer ? 'Editar cliente' : 'Nuevo cliente fiado'} subtitle="Asigna un límite de crédito para controlar sus compras."/><form onSubmit={(event) => void saveCustomer(event)}><label className="form-label">Nombre completo<input name="name" required defaultValue={editingCustomer?.name} placeholder="Nombre y apellidos"/></label><div className="form-grid"><label className="form-label">RUT<input name="rut" required defaultValue={editingCustomer?.rut} placeholder="12.345.678-9"/></label><label className="form-label">Teléfono<input name="phone" defaultValue={editingCustomer?.phone} placeholder="+56 9 1234 5678"/></label><label className="form-label">Límite de crédito (CLP)<input name="credit_limit" type="number" min="0" required defaultValue={editingCustomer?.credit_limit ?? 0} placeholder="0"/></label></div><button className="button button-dark modal-submit" type="submit"><Check size={16}/> Guardar cliente</button></form></>}
         {modal === 'staff' && <><ModalHeading icon={UserRound} title={editingEmployee ? 'Editar persona' : 'Agregar al equipo'} subtitle={editingEmployee ? 'Deja el PIN vacío para mantener el actual.' : 'Con su nombre y PIN inicia turno en la página de ventas.'}/><form onSubmit={(event) => void saveEmployee(event)}><label className="form-label">Nombre completo<input name="name" required defaultValue={editingEmployee?.name} placeholder="Nombre y apellido"/></label><div className="form-grid"><label className="form-label">RUT<input name="rut" required defaultValue={editingEmployee?.rut} placeholder="12.345.678-9"/></label><label className="form-label">{editingEmployee ? 'PIN nuevo (opcional)' : 'PIN de acceso'}<input name="pin" type="password" inputMode="numeric" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required={!editingEmployee} placeholder="4 a 8 dígitos" autoComplete="new-password"/></label></div><label className="toggle-label"><input name="active" type="checkbox" defaultChecked={editingEmployee?.active ?? true}/><span>Puede iniciar turno</span></label><button className="button button-dark modal-submit" type="submit"><Check size={16}/> Guardar persona</button></form></>}
-        {modal === 'terminal-code' && <><ModalHeading icon={Link2} title="Vincular una caja" subtitle="Hazlo una vez en cada computador o tablet donde se venda."/>{terminalCode ? <div className="terminal-code-box"><p>En el equipo de venta abre la página de ventas, elige <strong>Código de caja</strong> y escribe:</p><strong className="terminal-code">{terminalCode.code}</strong><p className="muted">Para “{terminalCode.label}”. Vence a las {new Intl.DateTimeFormat('es-CL', { timeStyle: 'short' }).format(new Date(terminalCode.expiresAt))} y sirve una sola vez.</p><div className="receipt-actions"><button className="button button-light" onClick={() => void navigator.clipboard?.writeText(terminalCode.code).then(() => setNotice('Código copiado'))}>Copiar código</button><button className="button button-dark" onClick={() => { setModal(null); void loadTerminals(companyId) }}><Check size={16}/> Listo</button></div></div> : <form onSubmit={(event) => void createTerminalCode(event)}><label className="form-label">Nombre de la caja<input name="label" required maxLength={40} defaultValue={`Caja ${terminals.length + 1}`}/></label><p className="muted small-note">También puedes vincularla directamente en el equipo de venta con tu correo y clave; tu sesión no queda guardada ahí.</p><button className="button button-dark modal-submit" type="submit"><ShieldCheck size={16}/> Generar código</button></form>}</>}
+        {modal === 'terminal-code' && <><ModalHeading icon={Link2} title="Vincular una caja" subtitle="Hazlo una vez en cada computador o tablet donde se venda."/>{terminalCode ? <div className="terminal-code-box"><p>En el equipo de venta abre la página de ventas, elige <strong>Código de caja</strong> y escribe:</p><strong className="terminal-code">{terminalCode.code}</strong><p className="muted">Para “{terminalCode.label}”. Vence a las {new Intl.DateTimeFormat('es-CL', { timeStyle: 'short' }).format(new Date(terminalCode.expiresAt))} y sirve una sola vez.</p><div className="receipt-actions"><button className="button button-light" onClick={() => void navigator.clipboard?.writeText(terminalCode.code).then(() => setNotice('Código copiado'))}>Copiar código</button><button className="button button-dark" onClick={() => { setModal(null); void loadTerminals(companyId) }}><Check size={16}/> Listo</button></div></div> : <form onSubmit={(event) => void createTerminalCode(event)}><label className="form-label">Nombre de la caja<input name="label" required maxLength={40} defaultValue={`Caja ${terminals.length + 1}`}/></label><p className="muted small-note">También puedes vincularla directamente en el equipo de venta con tu correo y clave; tu sesión no queda guardada ahí.</p>{terminalError && <p className="auth-error" role="alert">{terminalError}</p>}<button className="button button-dark modal-submit" type="submit"><ShieldCheck size={16}/> Generar código</button></form>}</>}
       </section></div>}
     </div>
   )

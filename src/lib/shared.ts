@@ -49,3 +49,7 @@ export async function optimizeProductImage(file: File): Promise<Blob> {
   bitmap.close()
   return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('No se pudo comprimir la imagen')), 'image/webp', 0.82))
 }
+
+// Agrega el motivo técnico que entrega Supabase, para poder diagnosticar.
+export const errorDetail = (error?: { message?: string; code?: string } | null) =>
+  error?.message ? ` Detalle: ${error.message}${error.code ? ` (${error.code})` : ''}` : ''

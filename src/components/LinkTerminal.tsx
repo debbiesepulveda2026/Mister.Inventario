@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { KeyRound, Link2, ShieldCheck, Store } from 'lucide-react'
 import { AuthArt } from './common'
-import { authErrorText } from '../lib/shared'
+import { authErrorText, errorDetail } from '../lib/shared'
 import { createTemporaryOwnerClient, ventasSupabase } from '../lib/supabaseVentas'
 
 // Pantalla para vincular un equipo como caja de un almacén.
@@ -24,7 +24,7 @@ export function LinkTerminal({ onLinked, initialError }: { onLinked: () => void;
     const { error: claimError } = await ventasSupabase.rpc('claim_terminal_code', { link_code: linkCode })
     if (claimError) {
       if (claimError.message.includes('inválido') || claimError.message.includes('vencido')) throw new Error('El código no existe o ya venció. Pide uno nuevo al dueño.')
-      if (claimError.message.includes('function') || claimError.code === 'PGRST202') throw new Error('Falta ejecutar supabase/ventas_migration.sql en Supabase.')
+      if (claimError.message.includes('function') || claimError.code === 'PGRST202') throw new Error('Supabase no encuentra la función para vincular cajas.' + errorDetail(claimError))
       throw new Error(claimError.message)
     }
   }
@@ -41,7 +41,7 @@ export function LinkTerminal({ onLinked, initialError }: { onLinked: () => void;
       if (codeError || typeof newCode !== 'string') {
         throw new Error(codeError?.message.includes('not authorized')
           ? 'Esa cuenta no es dueña de un almacén aprobado.'
-          : 'No se pudo generar el código. Revisa que esté ejecutado ventas_migration.sql.')
+          : 'No se pudo generar el código.' + errorDetail(codeError))
       }
       await claim(newCode)
       setPassword('')
